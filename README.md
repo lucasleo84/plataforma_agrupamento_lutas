@@ -1,0 +1,1 @@
+# plataforma_agrupamento_lutas
