@@ -1,0 +1,9 @@
+bloquear com membros inferiores
+bloquear com membros superiores
+esquivar
+sair de agarres
+rolar
+saber cair
+
+
+
