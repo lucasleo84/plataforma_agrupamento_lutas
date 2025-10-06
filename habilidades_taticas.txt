@@ -1,6 +1,4 @@
-streamlit
-pandas
-networkx
-pyvis
-python-louvain
-matplotlib
+golpear e contra-golpear
+assumir/ajustar base
+ajustar distância
+enganar/fintar
