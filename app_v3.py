@@ -212,6 +212,44 @@ def pagina_insercao():
     else:
         st.info("Nenhum registro ainda.")
 
+    st.subheader("✏️ Corrigir ou Atualizar Brincadeira")
+registros = carregar_dados()
+
+if registros:
+    opcoes = [f"{r['luta']} – {r['brincadeira']}" for r in registros]
+    escolha = st.selectbox("Selecione o registro para editar", opcoes)
+
+    if escolha:
+        idx = opcoes.index(escolha)
+        r = registros[idx]
+
+        nova_luta = st.text_input("Luta", r["luta"])
+        nova_brinc = st.text_input("Brincadeira", r["brincadeira"])
+        tec_of  = st.multiselect("Técnicas Ofensivas", cat["tecnicas_of"], default=r["hab_tecnicas_of"])
+        tec_def = st.multiselect("Técnicas Defensivas", cat["tecnicas_def"], default=r["hab_tecnicas_def"])
+        taticas = st.multiselect("Habilidades Táticas", cat["taticas"], default=r["hab_taticas"])
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("💾 Atualizar Registro"):
+                registros[idx] = {
+                    "luta": nova_luta.strip(),
+                    "brincadeira": nova_brinc.strip(),
+                    "hab_tecnicas_of": tec_of,
+                    "hab_tecnicas_def": tec_def,
+                    "hab_taticas": taticas
+                }
+                salvar_dados(registros)
+                st.success("Registro atualizado com sucesso.")
+        with c2:
+            if st.button("🗑️ Excluir Registro"):
+                registros.pop(idx)
+                salvar_dados(registros)
+                st.warning("Registro excluído.")
+else:
+    st.info("Nenhum registro disponível para edição.")
+
+
 def pagina_visualizacao():
     st.header("Área do Professor – Visualização e Controles")
     with st.sidebar:
