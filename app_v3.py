@@ -20,23 +20,22 @@ st.set_page_config(
     layout="wide"
 )
 st.markdown(
-    "<style> .stButton>button { font-weight: 600 } .stDownloadButton>button { font-weight: 600 } </style>",
+    "<style> .stButton>button { font-weight:600 } .stDownloadButton>button { font-weight:600 } </style>",
     unsafe_allow_html=True
 )
 
 BASE_DIR = Path(__file__).parent
 ARQ_DADOS = BASE_DIR / "dados.json"
 
-# Arquivos de habilidades (um por categoria)
+# Arquivos de habilidades
 ARQ_TEC_OF  = BASE_DIR / "habilidades_tecnicas_ofensivas.txt"
 ARQ_TEC_DEF = BASE_DIR / "habilidades_tecnicas_defensivas.txt"
 ARQ_TAC     = BASE_DIR / "habilidades_taticas.txt"
 
 # Cores
-COR_LUTA         = "#1f77b4"   # azul
-COR_BRINCADEIRA  = "#2ca02c"   # verde
-COR_TECNICA      = "#ff7f0e"   # laranja
-COR_TATICA       = "#9467bd"   # roxo
+COR_LUTA, COR_BRINCADEIRA, COR_TECNICA, COR_TATICA = (
+    "#1f77b4", "#2ca02c", "#ff7f0e", "#9467bd"
+)
 
 # -----------------------------------------------------------
 # Utilidades
@@ -48,7 +47,6 @@ def _ler_lista(arquivo: Path, fallback: List[str]) -> List[str]:
     return fallback
 
 def carregar_habilidades_catalogo() -> Dict[str, List[str]]:
-    """Retorna dict com 3 listas: tecnicas_of, tecnicas_def, taticas"""
     return {
         "tecnicas_of": _ler_lista(ARQ_TEC_OF,  ["projetar", "chutar", "golpear", "derrubar"]),
         "tecnicas_def": _ler_lista(ARQ_TEC_DEF, ["bloquear", "imobilizar", "defender", "segurar"]),
@@ -73,20 +71,6 @@ def init_state():
         st.session_state.filters = {"LB": True, "BH": True, "LH": True}
 
 # -----------------------------------------------------------
-# Estrutura dos registros
-# -----------------------------------------------------------
-def adicionar_ou_atualizar(registros: List[dict], novo: dict) -> List[dict]:
-    luta = novo["luta"].strip().lower()
-    brinc = novo["brincadeira"].strip().lower()
-    for r in registros:
-        if r["luta"].strip().lower() == luta and r["brincadeira"].strip().lower() == brinc:
-            for k in ["hab_tecnicas_of", "hab_tecnicas_def", "hab_taticas"]:
-                r[k] = sorted(set(r[k]).union(set(novo[k])))
-            return registros
-    registros.append(novo)
-    return registros
-
-# -----------------------------------------------------------
 # Construção da Rede
 # -----------------------------------------------------------
 def build_graph_full(registros: List[dict]) -> nx.Graph:
@@ -97,7 +81,6 @@ def build_graph_full(registros: List[dict]) -> nx.Graph:
         G.add_node(luta, tipo="luta", label=luta)
         G.add_node(brinc, tipo="brincadeira", label=brinc)
         G.add_edge(luta, brinc, rel="LB")
-
         grupos = [
             ("tecnica", r["hab_tecnicas_of"]),
             ("tecnica", r["hab_tecnicas_def"]),
@@ -121,10 +104,8 @@ def subgraph_for_relation(G_full: nx.Graph, show_LB: bool, show_BH: bool, show_L
     H = nx.Graph()
     for u, v, attrs in G_full.edges(data=True):
         if attrs.get("rel") in allowed:
-            if u not in H:
-                H.add_node(u, **G_full.nodes[u])
-            if v not in H:
-                H.add_node(v, **G_full.nodes[v])
+            if u not in H: H.add_node(u, **G_full.nodes[u])
+            if v not in H: H.add_node(v, **G_full.nodes[v])
             H.add_edge(u, v, **attrs)
     return H
 
@@ -133,14 +114,11 @@ def color_and_size_for_node(G: nx.Graph, n: str) -> Dict[str, str]:
     t = attrs.get("tipo", "")
     deg = G.degree(n)
     size = max(10, 10 + 4 * deg)
-    if t == "luta":
-        color = COR_LUTA
-    elif t == "brincadeira":
-        color = COR_BRINCADEIRA
+    if t == "luta": color = COR_LUTA
+    elif t == "brincadeira": color = COR_BRINCADEIRA
     elif t == "habilidade":
         color = COR_TECNICA if attrs.get("sub_tipo") == "tecnica" else COR_TATICA
-    else:
-        color = "#888888"
+    else: color = "#888888"
     return {"color": color, "size": size, "title": f"{t} • grau: {deg}"}
 
 def render_pyvis(G: nx.Graph, view="A", partition=None, height="720px") -> str:
@@ -148,7 +126,7 @@ def render_pyvis(G: nx.Graph, view="A", partition=None, height="720px") -> str:
     net.barnes_hut()
     net.set_options('''
     {
-      "nodes": {"shape": "dot", "scaling": {"min": 10, "max": 55}, "font": {"size": 18}},
+      "nodes": {"shape": "dot","scaling": {"min":10,"max":55},"font": {"size":18}},
       "edges": {"smooth": true},
       "physics": {"stabilization": true},
       "interaction": {"hover": true,"navigationButtons": true,"dragNodes": true}
@@ -175,32 +153,66 @@ def render_pyvis(G: nx.Graph, view="A", partition=None, height="720px") -> str:
     return net.generate_html(notebook=False)
 
 # -----------------------------------------------------------
-# Interface - Páginas
+# Área dos Alunos (Inserção + Edição)
 # -----------------------------------------------------------
 def pagina_insercao():
-    st.header("Área dos Alunos – Inserção")
-    st.caption("Preencha os campos e adicione a brincadeira com suas habilidades.")
+    st.header("Área dos Alunos – Inserção e Correção")
+    st.caption("Adicione, atualize ou exclua brincadeiras associadas às lutas.")
     cat = carregar_habilidades_catalogo()
-    luta = st.text_input("Nome da Luta")
-    brinc = st.text_input("Nome da Brincadeira")
-    tec_of  = st.multiselect("Técnicas Ofensivas",  options=cat["tecnicas_of"])
-    tec_def = st.multiselect("Técnicas Defensivas", options=cat["tecnicas_def"])
-    taticas = st.multiselect("Habilidades Táticas", options=cat["taticas"])
-    if st.button("➕ Adicionar Brincadeira", type="primary"):
-        if not luta.strip() or not brinc.strip():
-            st.error("Informe Luta e Brincadeira.")
-        elif len(tec_of + tec_def + taticas) == 0:
-            st.error("Selecione pelo menos uma habilidade.")
-        else:
-            registros = carregar_dados()
-            novo = {"luta": luta.strip(),"brincadeira": brinc.strip(),
-                    "hab_tecnicas_of": tec_of,"hab_tecnicas_def": tec_def,"hab_taticas": taticas}
-            registros = adicionar_ou_atualizar(registros, novo)
-            salvar_dados(registros)
-            st.success(f"Brincadeira **{brinc}** adicionada à luta **{luta}**.")
-            st.balloons()
-
     registros = carregar_dados()
+
+    # Inserção
+    with st.expander("➕ Adicionar nova brincadeira", expanded=True):
+        luta = st.text_input("Nome da Luta")
+        brinc = st.text_input("Nome da Brincadeira")
+        tec_of  = st.multiselect("Técnicas Ofensivas",  options=cat["tecnicas_of"])
+        tec_def = st.multiselect("Técnicas Defensivas", options=cat["tecnicas_def"])
+        taticas = st.multiselect("Habilidades Táticas", options=cat["taticas"])
+
+        if st.button("Salvar nova brincadeira", type="primary"):
+            if not luta.strip() or not brinc.strip():
+                st.error("Informe Luta e Brincadeira.")
+            elif len(tec_of + tec_def + taticas) == 0:
+                st.error("Selecione pelo menos uma habilidade.")
+            else:
+                novo = {"luta": luta.strip(),"brincadeira": brinc.strip(),
+                        "hab_tecnicas_of": tec_of,"hab_tecnicas_def": tec_def,"hab_taticas": taticas}
+                registros.append(novo)
+                salvar_dados(registros)
+                st.success(f"Brincadeira **{brinc}** adicionada à luta **{luta}**.")
+                st.balloons()
+
+    # Edição
+    with st.expander("✏️ Corrigir ou atualizar brincadeira existente"):
+        if registros:
+            opcoes = [f"{r['luta']} – {r['brincadeira']}" for r in registros]
+            escolha = st.selectbox("Selecione o registro para editar", opcoes)
+            idx = opcoes.index(escolha)
+            r = registros[idx]
+
+            nova_luta = st.text_input("Luta", r["luta"], key="edit_luta")
+            nova_brinc = st.text_input("Brincadeira", r["brincadeira"], key="edit_brinc")
+            tec_of  = st.multiselect("Técnicas Ofensivas", cat["tecnicas_of"], default=r["hab_tecnicas_of"], key="edit_of")
+            tec_def = st.multiselect("Técnicas Defensivas", cat["tecnicas_def"], default=r["hab_tecnicas_def"], key="edit_def")
+            taticas = st.multiselect("Habilidades Táticas", cat["taticas"], default=r["hab_taticas"], key="edit_tat")
+
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("💾 Atualizar registro", use_container_width=True):
+                    registros[idx] = {"luta": nova_luta.strip(),"brincadeira": nova_brinc.strip(),
+                                      "hab_tecnicas_of": tec_of,"hab_tecnicas_def": tec_def,"hab_taticas": taticas}
+                    salvar_dados(registros)
+                    st.success("Registro atualizado com sucesso.")
+            with c2:
+                if st.button("🗑️ Excluir registro", use_container_width=True):
+                    registros.pop(idx)
+                    salvar_dados(registros)
+                    st.warning("Registro excluído com sucesso.")
+        else:
+            st.info("Nenhum registro disponível para edição.")
+
+    # Visualização rápida
+    st.subheader("📋 Registros atuais")
     if registros:
         df = pd.DataFrame(registros)
         for k in ["hab_tecnicas_of","hab_tecnicas_def","hab_taticas"]:
@@ -209,54 +221,22 @@ def pagina_insercao():
                                         "hab_tecnicas_of":"Téc. Ofensivas","hab_tecnicas_def":"Téc. Defensivas",
                                         "hab_taticas":"Habilidades Táticas"}),
                      use_container_width=True,hide_index=True)
-   
-    st.subheader("✏️ Corrigir ou Atualizar Brincadeira")
-    registros = carregar_dados()
-    
-    if registros:
-        opcoes = [f"{r['luta']} – {r['brincadeira']}" for r in registros]
-        escolha = st.selectbox("Selecione o registro para editar", opcoes)
-    
-        if escolha:
-            idx = opcoes.index(escolha)
-            r = registros[idx]
-    
-            nova_luta = st.text_input("Luta", r["luta"])
-            nova_brinc = st.text_input("Brincadeira", r["brincadeira"])
-            tec_of  = st.multiselect("Técnicas Ofensivas", cat["tecnicas_of"], default=r["hab_tecnicas_of"])
-            tec_def = st.multiselect("Técnicas Defensivas", cat["tecnicas_def"], default=r["hab_tecnicas_def"])
-            taticas = st.multiselect("Habilidades Táticas", cat["taticas"], default=r["hab_taticas"])
-    
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("💾 Atualizar Registro"):
-                    registros[idx] = {
-                        "luta": nova_luta.strip(),
-                        "brincadeira": nova_brinc.strip(),
-                        "hab_tecnicas_of": tec_of,
-                        "hab_tecnicas_def": tec_def,
-                        "hab_taticas": taticas
-                    }
-                    salvar_dados(registros)
-                    st.success("Registro atualizado com sucesso.")
-            with c2:
-                if st.button("🗑️ Excluir Registro"):
-                    registros.pop(idx)
-                    salvar_dados(registros)
-                    st.warning("Registro excluído.")
-else:
-    st.info("Nenhum registro disponível para edição.")
+    else:
+        st.info("Nenhum registro ainda.")
 
+# -----------------------------------------------------------
+# Área do Professor
+# -----------------------------------------------------------
 def pagina_visualizacao():
     st.header("Área do Professor – Visualização e Controles")
     with st.sidebar:
         st.subheader("Filtros de Visualização")
-        show_LB = st.checkbox("Luta → Brincadeira", value=st.session_state.filters["LB"])
-        show_BH = st.checkbox("Brincadeira → Habilidade", value=st.session_state.filters["BH"])
-        show_LH = st.checkbox("Luta → Habilidade", value=st.session_state.filters["LH"])
-        st.session_state.filters.update({"LB": show_LB, "BH": show_BH, "LH": show_LH})
+        f = st.session_state.filters
+        f["LB"] = st.checkbox("Luta → Brincadeira", value=f["LB"])
+        f["BH"] = st.checkbox("Brincadeira → Habilidade", value=f["BH"])
+        f["LH"] = st.checkbox("Luta → Habilidade", value=f["LH"])
         st.divider(); st.subheader("Legenda (Visual A)")
-        st.markdown("- 🔵 **Lutas**\n- 🟢 **Brincadeiras**\n- 🟠 **Técnicas** (Of/Def)\n- 🟣 **Táticas**")
+        st.markdown("- 🔵 **Lutas**\n- 🟢 **Brincadeiras**\n- 🟠 **Técnicas (Of/Def)**\n- 🟣 **Táticas**")
         st.divider()
         if st.button("♻️ Limpar Rede", type="secondary"):
             salvar_dados([]); st.toast("Rede limpa.", icon="✅")
@@ -275,7 +255,6 @@ def pagina_visualizacao():
         export_clicked=st.button("💾 Exportar PNG",use_container_width=True)
 
     G_full=build_graph_full(registros)
-    f=st.session_state.filters
     G=subgraph_for_relation(G_full,f["LB"],f["BH"],f["LH"])
     if G.number_of_nodes()==0:
         st.warning("Nenhum nó com os filtros atuais."); return
@@ -289,7 +268,7 @@ def pagina_visualizacao():
         st.components.v1.html(html,height=720,scrolling=True)
 
 # -----------------------------------------------------------
-# Roteamento simples por query string (corrigido)
+# Navegação por URL (corrigido)
 # -----------------------------------------------------------
 init_state()
 params = st.query_params
