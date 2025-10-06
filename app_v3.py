@@ -174,33 +174,8 @@ def render_pyvis(G: nx.Graph, view="A", partition=None, height="720px") -> str:
             net.add_edge(str(u), str(v))
     return net.generate_html(notebook=False)
 
-def export_png(G: nx.Graph, filename="rede_v4_1.png", view="A", partition=None):
-    plt.figure(figsize=(13,9))
-    pos = nx.spring_layout(G, seed=42, k=0.75)
-    labels = {n:str(G.nodes[n].get("label",n)) for n in G.nodes()}
-    if view == "A":
-        colors, sizes = [], []
-        for n in G.nodes():
-            sty = color_and_size_for_node(G, n)
-            colors.append(sty["color"]); sizes.append(300+60*G.degree(n))
-        nx.draw_networkx_nodes(G,pos,node_color=colors,node_size=sizes,alpha=0.9)
-        nx.draw_networkx_edges(G,pos,alpha=0.3)
-        nx.draw_networkx_labels(G,pos,labels=labels,font_size=10)
-        plt.title("Visualização A – Por tipo (Luta, Brincadeira, Técnica, Tática)")
-        plt.figtext(0.01,0.01,"Azul=Lutas | Verde=Brincadeiras | Laranja=Técnicas | Roxo=Táticas",ha="left",va="bottom")
-    else:
-        if not partition: partition={n:0 for n in G.nodes()}
-        palette=["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
-        for g in sorted(set(partition.values())):
-            ns=[n for n in G.nodes() if partition[n]==g]
-            nx.draw_networkx_nodes(G,pos,nodelist=ns,node_color=palette[g%len(palette)],node_size=[300+60*G.degree(n) for n in ns],alpha=0.9)
-        nx.draw_networkx_edges(G,pos,alpha=0.3)
-        nx.draw_networkx_labels(G,pos,labels=labels,font_size=10)
-        plt.title("Visualização B – Clusters (Louvain)")
-    plt.axis("off"); plt.tight_layout(); plt.savefig(filename,dpi=300,bbox_inches="tight"); plt.close(); return filename
-
 # -----------------------------------------------------------
-# Páginas
+# Interface - Páginas
 # -----------------------------------------------------------
 def pagina_insercao():
     st.header("Área dos Alunos – Inserção")
@@ -273,22 +248,17 @@ def pagina_visualizacao():
     if st.session_state.view=="A":
         html=render_pyvis(G,"A")
         st.components.v1.html(html,height=720,scrolling=True)
-        if export_clicked:
-            fn=export_png(G,"rede_v4_1_A.png","A"); 
-            with open(fn,"rb") as f: st.download_button("Baixar PNG",data=f,file_name="rede_v4_1_A.png",mime="image/png")
     else:
         part=community_louvain.best_partition(G) if G.number_of_edges()>0 else {n:0 for n in G.nodes()}
         html=render_pyvis(G,"B",part)
         st.components.v1.html(html,height=720,scrolling=True)
-        if export_clicked:
-            fn=export_png(G,"rede_v4_1_B.png","B",part)
-            with open(fn,"rb") as f: st.download_button("Baixar PNG",data=f,file_name="rede_v4_1_B.png",mime="image/png")
 
 # -----------------------------------------------------------
-# Roteamento simples por query string
+# Roteamento simples por query string (corrigido)
 # -----------------------------------------------------------
 init_state()
-page = st.experimental_get_query_params().get("page", ["visualizacao"])[0].lower()
+page = st.query_params.get("page", ["visualizacao"])[0].lower()
+
 if page == "insercao":
     pagina_insercao()
 else:
