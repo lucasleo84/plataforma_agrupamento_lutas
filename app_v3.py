@@ -257,7 +257,8 @@ def pagina_visualizacao():
 # Roteamento simples por query string (corrigido)
 # -----------------------------------------------------------
 init_state()
-page = st.query_params.get("page", ["visualizacao"])[0].lower()
+params = st.query_params
+page = params.get("page", "visualizacao").lower()
 
 if page == "insercao":
     pagina_insercao()
