@@ -4,6 +4,8 @@ esquivar
 sair de agarres
 rolar
 saber cair
+estabelecer guarda
+
 
 
 
