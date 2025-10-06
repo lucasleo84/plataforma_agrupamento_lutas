@@ -91,14 +91,24 @@ def subgraph_with_filters(G_full, show_LB, show_BH, show_LH):
 def render_pyvis(G, view="A", partition=None, height="700px"):
     net = Network(height=height, width="100%", notebook=False, directed=False, bgcolor="#ffffff")
     net.barnes_hut()
-    net.set_options("""
-    var options = {
-      nodes: { shape: 'dot', scaling: {min: 10, max: 55}, font: { size: 18 } },
-      edges: { smooth: true },
-      physics: { stabilization: true },
-      interaction: { hover: true, multiselect: true, navigationButtons: true, dragNodes: true }
-    }
-    """)
+    net.set_options('''
+{
+  "nodes": {
+    "shape": "dot",
+    "scaling": { "min": 10, "max": 55 },
+    "font": { "size": 18 }
+  },
+  "edges": { "smooth": true },
+  "physics": { "stabilization": true },
+  "interaction": {
+    "hover": true,
+    "multiselect": true,
+    "navigationButtons": true,
+    "dragNodes": true
+  }
+}
+''')
+
 
     if view == "A":
         for n, attrs in G.nodes(data=True):
