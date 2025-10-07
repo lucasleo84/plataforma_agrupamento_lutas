@@ -6,17 +6,31 @@ import networkx as nx
 from pyvis.network import Network
 import community.community_louvain as community_louvain
 from pathlib import Path
-from typing import List, Dict
 
 # -----------------------------------------------------------
-# Configuração geral
+# CONFIGURAÇÕES GERAIS
 # -----------------------------------------------------------
 st.set_page_config(
     page_title="Rede das Lutas, Jogos e Habilidades",
     page_icon="🥋",
     layout="wide"
 )
-st.markdown("<style>.stButton>button{font-weight:600}</style>", unsafe_allow_html=True)
+st.markdown("""
+<style>
+    .stButton>button {
+        font-weight: 600;
+        border-radius: 8px;
+    }
+    .stSuccess {
+        animation: flash 0.8s ease-in-out;
+    }
+    @keyframes flash {
+        0% { background-color: #e6ffe6; }
+        50% { background-color: #ccffcc; }
+        100% { background-color: #e6ffe6; }
+    }
+</style>
+""", unsafe_allow_html=True)
 
 BASE_DIR = Path(__file__).parent
 ARQ_DADOS = BASE_DIR / "dados.json"
@@ -31,22 +45,22 @@ COR_TECNICA      = "#ff7f0e"   # laranja
 COR_TATICA       = "#9467bd"   # roxo
 
 # -----------------------------------------------------------
-# Utilidades
+# FUNÇÕES DE SUPORTE
 # -----------------------------------------------------------
-def _ler_lista(arquivo: Path, fallback: List[str]) -> List[str]:
+def _ler_lista(arquivo: Path, fallback: list[str]) -> list[str]:
     if arquivo.exists():
         linhas = [l.strip() for l in arquivo.read_text(encoding="utf-8").splitlines()]
         return [l for l in linhas if l]
     return fallback
 
-def carregar_habilidades_catalogo() -> Dict[str, List[str]]:
+def carregar_habilidades_catalogo():
     return {
-        "tecnicas_of": _ler_lista(ARQ_TEC_OF,  ["projetar", "chutar", "golpear", "derrubar"]),
-        "tecnicas_def": _ler_lista(ARQ_TEC_DEF, ["bloquear", "imobilizar", "defender", "segurar"]),
-        "taticas": _ler_lista(ARQ_TAC, ["feintar", "marcação", "cobertura", "pressão"])
+        "tecnicas_of": _ler_lista(ARQ_TEC_OF,  ["projetar", "chutar", "golpear"]),
+        "tecnicas_def": _ler_lista(ARQ_TEC_DEF, ["bloquear", "imobilizar", "defender"]),
+        "taticas": _ler_lista(ARQ_TAC, ["feintar", "cobrir", "pressionar"])
     }
 
-def carregar_dados() -> List[dict]:
+def carregar_dados():
     if ARQ_DADOS.exists():
         try:
             return json.loads(ARQ_DADOS.read_text(encoding="utf-8"))
@@ -54,7 +68,7 @@ def carregar_dados() -> List[dict]:
             return []
     return []
 
-def salvar_dados(registros: List[dict]) -> None:
+def salvar_dados(registros):
     ARQ_DADOS.write_text(json.dumps(registros, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def init_state():
@@ -64,9 +78,9 @@ def init_state():
         st.session_state.filters = {"LB": True, "BH": True, "LH": True}
 
 # -----------------------------------------------------------
-# Construção da Rede
+# REDE
 # -----------------------------------------------------------
-def build_graph_full(registros: List[dict]) -> nx.Graph:
+def build_graph_full(registros):
     G = nx.Graph()
     for r in registros:
         luta = r["luta"].strip()
@@ -91,7 +105,7 @@ def build_graph_full(registros: List[dict]) -> nx.Graph:
                 G.add_edge(luta, nome, rel="LH")
     return G
 
-def subgraph_for_relation(G_full: nx.Graph, show_LB: bool, show_BH: bool, show_LH: bool) -> nx.Graph:
+def subgraph_for_relation(G_full, show_LB, show_BH, show_LH):
     allowed = set()
     if show_LB: allowed.add("LB")
     if show_BH: allowed.add("BH")
@@ -105,7 +119,7 @@ def subgraph_for_relation(G_full: nx.Graph, show_LB: bool, show_BH: bool, show_L
             H.add_edge(u, v, **attrs)
     return H
 
-def color_and_size_for_node(G: nx.Graph, n: str) -> Dict[str, str]:
+def color_and_size_for_node(G, n):
     attrs = G.nodes[n]
     t = attrs.get("tipo", "")
     sub = attrs.get("sub_tipo", "")
@@ -126,7 +140,7 @@ def color_and_size_for_node(G: nx.Graph, n: str) -> Dict[str, str]:
 
     return {"color": color, "size": size, "title": f"{t} • conexões: {deg}"}
 
-def render_pyvis(G: nx.Graph, view: str = "A", partition=None, height: str = "740px") -> str:
+def render_pyvis(G, view="A", partition=None, height="740px"):
     net = Network(height=height, width="100%", notebook=False, directed=False, bgcolor="#ffffff")
     net.set_options('''
     {
@@ -137,10 +151,10 @@ def render_pyvis(G: nx.Graph, view: str = "A", partition=None, height: str = "74
         "solver": "repulsion",
         "repulsion": {
           "centralGravity": 0.12,
-          "springLength": 210,
-          "springConstant": 0.03,
-          "nodeDistance": 220,
-          "damping": 0.10
+          "springLength": 230,
+          "springConstant": 0.02,
+          "nodeDistance": 240,
+          "damping": 0.09
         }
       },
       "interaction": { "hover": true, "zoomView": true, "dragNodes": true }
@@ -169,13 +183,13 @@ def render_pyvis(G: nx.Graph, view: str = "A", partition=None, height: str = "74
             net.add_edge(str(u), str(v))
     return net.generate_html(notebook=False)
 
-def download_html_button(html: str, filename: str = "rede_lutas.html"):
+def download_html_button(html: str, filename="rede_lutas.html"):
     b64 = base64.b64encode(html.encode()).decode()
     href = f'<a href="data:text/html;base64,{b64}" download="{filename}">💾 Baixar Rede (HTML)</a>'
     st.markdown(href, unsafe_allow_html=True)
 
 # -----------------------------------------------------------
-# Página dos alunos
+# PÁGINA DOS ALUNOS
 # -----------------------------------------------------------
 def pagina_insercao():
     st.header("Área dos Alunos – Inserção")
@@ -183,7 +197,12 @@ def pagina_insercao():
     cat = carregar_habilidades_catalogo()
     registros = carregar_dados()
 
-    # Mostrar mensagem e limpar após recarregar
+    # Recarregamento
+    if "recarregar" in st.session_state and st.session_state.recarregar:
+        st.session_state.recarregar = False
+        st.experimental_rerun()
+
+    # Mensagem após reload
     if "mensagem_sucesso" in st.session_state:
         st.success(st.session_state["mensagem_sucesso"])
         if st.session_state.get("mostrar_baloes"):
@@ -214,7 +233,8 @@ def pagina_insercao():
             salvar_dados(registros)
             st.session_state["mensagem_sucesso"] = f"✅ Jogo **{brinc}** adicionado à luta **{luta}** com sucesso!"
             st.session_state["mostrar_baloes"] = True
-            st.rerun()  # recarrega e limpa
+            st.session_state.recarregar = True
+            st.experimental_rerun()
 
     st.subheader("📋 Registros atuais")
     registros = carregar_dados()
@@ -231,7 +251,7 @@ def pagina_insercao():
         st.info("Nenhum registro ainda.")
 
 # -----------------------------------------------------------
-# Página do professor
+# PÁGINA DO PROFESSOR
 # -----------------------------------------------------------
 def pagina_visualizacao():
     st.header("Área do Professor – Visualização e Controles")
@@ -277,7 +297,7 @@ def pagina_visualizacao():
     download_html_button(html, filename="rede_lutas.html")
 
 # -----------------------------------------------------------
-# Roteamento por URL
+# ROTEAMENTO
 # -----------------------------------------------------------
 init_state()
 params = st.query_params
