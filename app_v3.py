@@ -128,7 +128,6 @@ def color_and_size_for_node(G: nx.Graph, n: str) -> Dict[str, str]:
 
 def render_pyvis(G: nx.Graph, view: str = "A", partition=None, height: str = "740px") -> str:
     net = Network(height=height, width="100%", notebook=False, directed=False, bgcolor="#ffffff")
-
     net.set_options('''
     {
       "nodes": { "shape": "dot", "scaling": { "min": 10, "max": 55 }, "font": { "size": 18 } },
@@ -168,7 +167,6 @@ def render_pyvis(G: nx.Graph, view: str = "A", partition=None, height: str = "74
                          color=color, size=size, title=f"grau: {deg}")
         for u, v, attrs in G.edges(data=True):
             net.add_edge(str(u), str(v))
-
     return net.generate_html(notebook=False)
 
 def download_html_button(html: str, filename: str = "rede_lutas.html"):
@@ -177,13 +175,21 @@ def download_html_button(html: str, filename: str = "rede_lutas.html"):
     st.markdown(href, unsafe_allow_html=True)
 
 # -----------------------------------------------------------
-# Páginas
+# Página dos alunos
 # -----------------------------------------------------------
 def pagina_insercao():
     st.header("Área dos Alunos – Inserção")
     st.caption("Preencha os campos e adicione o jogo com suas habilidades.")
     cat = carregar_habilidades_catalogo()
     registros = carregar_dados()
+
+    # Mostrar mensagem e limpar após recarregar
+    if "mensagem_sucesso" in st.session_state:
+        st.success(st.session_state["mensagem_sucesso"])
+        if st.session_state.get("mostrar_baloes"):
+            st.balloons()
+        del st.session_state["mensagem_sucesso"]
+        del st.session_state["mostrar_baloes"]
 
     luta = st.text_input("Nome da Luta")
     brinc = st.text_input("Nome do Jogo / Brincadeira")
@@ -206,9 +212,9 @@ def pagina_insercao():
             }
             registros.append(novo)
             salvar_dados(registros)
-            st.success(f"✅ Jogo **{brinc}** adicionado à luta **{luta}** com sucesso!")
-            st.balloons()
-            st.rerun()  # 🔁 Atualiza automaticamente a página
+            st.session_state["mensagem_sucesso"] = f"✅ Jogo **{brinc}** adicionado à luta **{luta}** com sucesso!"
+            st.session_state["mostrar_baloes"] = True
+            st.rerun()  # recarrega e limpa
 
     st.subheader("📋 Registros atuais")
     registros = carregar_dados()
@@ -224,6 +230,9 @@ def pagina_insercao():
     else:
         st.info("Nenhum registro ainda.")
 
+# -----------------------------------------------------------
+# Página do professor
+# -----------------------------------------------------------
 def pagina_visualizacao():
     st.header("Área do Professor – Visualização e Controles")
     with st.sidebar:
