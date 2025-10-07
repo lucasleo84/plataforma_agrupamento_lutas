@@ -1,11 +1,7 @@
-bloquear com membros inferiores
-bloquear com membros superiores
+bloquear
 esquivar
 sair de agarres
 rolar
-saber cair
-estabelecer guarda
-
-
-
-
+quedar
+guarda
+equilibrar
