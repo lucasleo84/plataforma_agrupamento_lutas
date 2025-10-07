@@ -200,7 +200,7 @@ def pagina_insercao():
     # Recarregamento
     if "recarregar" in st.session_state and st.session_state.recarregar:
         st.session_state.recarregar = False
-        st.experimental_rerun()
+        st.rerun()
 
     # Mensagem após reload
     if "mensagem_sucesso" in st.session_state:
@@ -234,7 +234,7 @@ def pagina_insercao():
             st.session_state["mensagem_sucesso"] = f"✅ Jogo **{brinc}** adicionado à luta **{luta}** com sucesso!"
             st.session_state["mostrar_baloes"] = True
             st.session_state.recarregar = True
-            st.experimental_rerun()
+            st.rerun()
 
     st.subheader("📋 Registros atuais")
     registros = carregar_dados()
