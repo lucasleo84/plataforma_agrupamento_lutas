@@ -12,7 +12,7 @@ from typing import List, Dict
 # Configuração geral
 # -----------------------------------------------------------
 st.set_page_config(
-    page_title="Rede das Lutas, Brincadeiras e Habilidades",
+    page_title="Rede das Lutas, Jogos e Habilidades",
     page_icon="🥋",
     layout="wide"
 )
@@ -40,7 +40,6 @@ def _ler_lista(arquivo: Path, fallback: List[str]) -> List[str]:
     return fallback
 
 def carregar_habilidades_catalogo() -> Dict[str, List[str]]:
-    """Retorna dict com 3 listas: tecnicas_of, tecnicas_def, taticas."""
     return {
         "tecnicas_of": _ler_lista(ARQ_TEC_OF,  ["projetar", "chutar", "golpear", "derrubar"]),
         "tecnicas_def": _ler_lista(ARQ_TEC_DEF, ["bloquear", "imobilizar", "defender", "segurar"]),
@@ -60,7 +59,7 @@ def salvar_dados(registros: List[dict]) -> None:
 
 def init_state():
     if "view" not in st.session_state:
-        st.session_state.view = "A"  # A: por tipo | B: clusters
+        st.session_state.view = "A"
     if "filters" not in st.session_state:
         st.session_state.filters = {"LB": True, "BH": True, "LH": True}
 
@@ -68,16 +67,6 @@ def init_state():
 # Construção da Rede
 # -----------------------------------------------------------
 def build_graph_full(registros: List[dict]) -> nx.Graph:
-    """
-    Nós:
-      - tipo="luta" (azul)
-      - tipo="brincadeira" (verde)
-      - tipo="habilidade" + sub_tipo in {"tecnica","tatica"} (laranja/roxo)
-    Arestas (attr 'rel'):
-      - LB (luta-brincadeira)
-      - BH (brincadeira-habilidade)
-      - LH (luta-habilidade)
-    """
     G = nx.Graph()
     for r in registros:
         luta = r["luta"].strip()
@@ -103,7 +92,6 @@ def build_graph_full(registros: List[dict]) -> nx.Graph:
     return G
 
 def subgraph_for_relation(G_full: nx.Graph, show_LB: bool, show_BH: bool, show_LH: bool) -> nx.Graph:
-    """Filtra arestas pela relação e REMOVE nós sem arestas exibidas."""
     allowed = set()
     if show_LB: allowed.add("LB")
     if show_BH: allowed.add("BH")
@@ -118,12 +106,6 @@ def subgraph_for_relation(G_full: nx.Graph, show_LB: bool, show_BH: bool, show_L
     return H
 
 def color_and_size_for_node(G: nx.Graph, n: str) -> Dict[str, str]:
-    """
-    Tamanhos:
-      - Luta: fixo (25)
-      - Brincadeira: fixo (20)
-      - Habilidade (técnica/tática): cresce com interações (deg)
-    """
     attrs = G.nodes[n]
     t = attrs.get("tipo", "")
     sub = attrs.get("sub_tipo", "")
@@ -136,22 +118,17 @@ def color_and_size_for_node(G: nx.Graph, n: str) -> Dict[str, str]:
         size = 20
         color = COR_BRINCADEIRA
     elif t == "habilidade":
-        size = max(14, 10 + 6 * deg)  # aumenta só para habilidades
+        size = max(14, 10 + 6 * deg)
         color = COR_TECNICA if sub == "tecnica" else COR_TATICA
     else:
         size = 15
         color = "#aaaaaa"
 
-    title = f"{t} • conexões: {deg}"
-    return {"color": color, "size": size, "title": title}
+    return {"color": color, "size": size, "title": f"{t} • conexões: {deg}"}
 
 def render_pyvis(G: nx.Graph, view: str = "A", partition=None, height: str = "740px") -> str:
-    """
-    Render com PyVis e física configurada para minimizar sobreposição.
-    """
     net = Network(height=height, width="100%", notebook=False, directed=False, bgcolor="#ffffff")
 
-    # Física com maior repulsão e distância de nós para reduzir sobreposição
     net.set_options('''
     {
       "nodes": { "shape": "dot", "scaling": { "min": 10, "max": 55 }, "font": { "size": 18 } },
@@ -183,8 +160,9 @@ def render_pyvis(G: nx.Graph, view: str = "A", partition=None, height: str = "74
         palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b",
                    "#e377c2","#7f7f7f","#bcbd22","#17becf"]
         for n in G.nodes():
+            t = G.nodes[n].get("tipo")
             deg = G.degree(n)
-            size = max(14, 10 + 6 * deg) if G.nodes[n].get("tipo") == "habilidade" else (25 if G.nodes[n].get("tipo")=="luta" else 20)
+            size = max(14, 10 + 6 * deg) if t == "habilidade" else (25 if t=="luta" else 20)
             color = palette[part.get(n, 0) % len(palette)]
             net.add_node(str(n), label=str(G.nodes[n].get("label", n)),
                          color=color, size=size, title=f"grau: {deg}")
@@ -203,19 +181,19 @@ def download_html_button(html: str, filename: str = "rede_lutas.html"):
 # -----------------------------------------------------------
 def pagina_insercao():
     st.header("Área dos Alunos – Inserção")
-    st.caption("Preencha os campos e adicione a brincadeira com suas habilidades.")
+    st.caption("Preencha os campos e adicione o jogo com suas habilidades.")
     cat = carregar_habilidades_catalogo()
     registros = carregar_dados()
 
     luta = st.text_input("Nome da Luta")
-    brinc = st.text_input("Nome da Brincadeira")
+    brinc = st.text_input("Nome do Jogo / Brincadeira")
     tec_of  = st.multiselect("Técnicas Ofensivas",  options=cat["tecnicas_of"])
     tec_def = st.multiselect("Técnicas Defensivas", options=cat["tecnicas_def"])
     taticas = st.multiselect("Habilidades Táticas", options=cat["taticas"])
 
-    if st.button("➕ Adicionar Brincadeira", type="primary"):
+    if st.button("➕ Adicionar Jogo", type="primary"):
         if not luta.strip() or not brinc.strip():
-            st.error("Informe Luta e Brincadeira.")
+            st.error("Informe Luta e Jogo.")
         elif len(tec_of + tec_def + taticas) == 0:
             st.error("Selecione pelo menos uma habilidade.")
         else:
@@ -228,8 +206,9 @@ def pagina_insercao():
             }
             registros.append(novo)
             salvar_dados(registros)
-            st.success(f"Brincadeira **{brinc}** adicionada à luta **{luta}**.")
+            st.success(f"✅ Jogo **{brinc}** adicionado à luta **{luta}** com sucesso!")
             st.balloons()
+            st.rerun()  # 🔁 Atualiza automaticamente a página
 
     st.subheader("📋 Registros atuais")
     registros = carregar_dados()
@@ -238,7 +217,7 @@ def pagina_insercao():
         for k in ["hab_tecnicas_of","hab_tecnicas_def","hab_taticas"]:
             df[k] = df[k].apply(lambda xs: ", ".join(xs))
         st.dataframe(df.rename(columns={
-            "luta":"Luta","brincadeira":"Brincadeira",
+            "luta":"Luta","brincadeira":"Jogo / Brincadeira",
             "hab_tecnicas_of":"Téc. Ofensivas","hab_tecnicas_def":"Téc. Defensivas",
             "hab_taticas":"Habilidades Táticas"
         }), use_container_width=True, hide_index=True)
@@ -250,12 +229,12 @@ def pagina_visualizacao():
     with st.sidebar:
         st.subheader("Filtros de Visualização")
         f = st.session_state.filters
-        f["LB"] = st.checkbox("Luta → Brincadeira", value=f["LB"])
-        f["BH"] = st.checkbox("Brincadeira → Habilidade", value=f["BH"])
+        f["LB"] = st.checkbox("Luta → Jogo", value=f["LB"])
+        f["BH"] = st.checkbox("Jogo → Habilidade", value=f["BH"])
         f["LH"] = st.checkbox("Luta → Habilidade", value=f["LH"])
         st.divider()
         st.subheader("Legenda (Visual A)")
-        st.markdown("- 🔵 **Lutas**\n- 🟢 **Brincadeiras**\n- 🟠 **Técnicas (Of/Def)**\n- 🟣 **Táticas**")
+        st.markdown("- 🔵 **Lutas**\n- 🟢 **Jogos**\n- 🟠 **Técnicas (Of/Def)**\n- 🟣 **Táticas**")
         st.divider()
         if st.button("♻️ Limpar Rede", type="secondary"):
             salvar_dados([]); st.toast("Rede limpa.", icon="✅")
