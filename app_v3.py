@@ -153,9 +153,9 @@ def render_pyvis(G, view="A", partition=None, height="740px"):
         "shape": "dot",
         "opacity": 1.0,
         "borderWidth": 1,
-        "scaling": { "min": 10, "max": 55 },
+        "scaling": { "min": 5, "max": 5 },
         "font": {
-          "size": 10,
+          "size": 5,
           "face": "Arial",
           "background": "rgba(255,255,255,0.8)",
           "strokeWidth": 0,
