@@ -38,7 +38,7 @@ ARQ_TEC_OF  = BASE_DIR / "habilidades_tecnicas_ofensivas.txt"
 ARQ_TEC_DEF = BASE_DIR / "habilidades_tecnicas_defensivas.txt"
 ARQ_TAC     = BASE_DIR / "habilidades_taticas.txt"
 
-# Cores
+# Cores fixas
 COR_LUTA         = "#1f77b4"   # azul
 COR_BRINCADEIRA  = "#2ca02c"   # verde
 COR_TECNICA      = "#ff7f0e"   # laranja
@@ -140,14 +140,27 @@ def color_and_size_for_node(G, n):
 
     return {"color": color, "size": size, "title": f"{t} • conexões: {deg}"}
 
+# -----------------------------------------------------------
+# VISUALIZAÇÃO PYVIS
+# -----------------------------------------------------------
 def render_pyvis(G, view="A", partition=None, height="740px"):
     net = Network(height=height, width="100%", notebook=False, directed=False, bgcolor="#ffffff")
+
+    # Parâmetros visuais otimizados
     net.set_options('''
     {
       "nodes": {
         "shape": "dot",
+        "opacity": 1.0,
+        "borderWidth": 1,
         "scaling": { "min": 10, "max": 55 },
-        "font": { "size": 18 }
+        "font": {
+          "size": 20,
+          "face": "Arial",
+          "background": "rgba(255,255,255,0.8)",
+          "strokeWidth": 0,
+          "vadjust": 0
+        }
       },
       "edges": {
         "smooth": false,
@@ -165,30 +178,29 @@ def render_pyvis(G, view="A", partition=None, height="740px"):
         "enabled": true,
         "solver": "repulsion",
         "repulsion": {
-          "centralGravity": 0.12,
-          "springLength": 230,
-          "springConstant": 0.02,
-          "nodeDistance": 240,
-          "damping": 0.09
-        }
+          "centralGravity": 0.08,
+          "springLength": 260,
+          "springConstant": 0.03,
+          "nodeDistance": 380,
+          "damping": 0.1
+        },
+        "minVelocity": 0.75
       },
-      "manipulation": { "enabled": false },
-      "interaction": {
-        "multiselect": false,
-        "navigationButtons": true
-      },
-      "configure": { "enabled": false },
-      "groups": {}
+      "layout": {
+        "improvedLayout": true,
+        "hierarchical": false
+      }
     }
     ''')
 
+    # Nós e arestas
     if view == "A":
         for n in G.nodes():
             sty = color_and_size_for_node(G, n)
             net.add_node(str(n),
                          label=str(G.nodes[n].get("label", n)),
-                         color=sty["color"], size=sty["size"],
-                         title=sty["title"])
+                         color={"background": sty["color"], "border": "#333333"},
+                         size=sty["size"], title=sty["title"])
         for u, v, attrs in G.edges(data=True):
             net.add_edge(str(u), str(v))
     else:
@@ -202,43 +214,57 @@ def render_pyvis(G, view="A", partition=None, height="740px"):
             color = palette[part.get(n, 0) % len(palette)]
             net.add_node(str(n),
                          label=str(G.nodes[n].get("label", n)),
-                         color=color, size=size,
-                         title=f"grau: {deg}")
+                         color={"background": color, "border": "#333333"},
+                         size=size, title=f"grau: {deg}")
         for u, v, attrs in G.edges(data=True):
             net.add_edge(str(u), str(v))
 
-    # --- JS personalizado para destacar conexões ---
+    # JavaScript customizado
     custom_js = """
     <script type="text/javascript">
+      // Foco seletivo
       network.on("selectNode", function(params) {
         var selectedNode = params.nodes[0];
         var connectedNodes = network.getConnectedNodes(selectedNode);
         var allNodes = network.body.nodes;
         var allEdges = network.body.edges;
+
         for (var nodeId in allNodes) {
           if (nodeId == selectedNode || connectedNodes.includes(nodeId)) {
-            allNodes[nodeId].setOptions({color:{opacity:1}, font:{color:'black'}});
+            allNodes[nodeId].setOptions({opacity:1, font:{color:'black'}});
           } else {
-            allNodes[nodeId].setOptions({color:{opacity:0.2}, font:{color:'#cccccc'}});
+            allNodes[nodeId].setOptions({opacity:0.15, font:{color:'#bbbbbb'}});
           }
         }
+
         for (var edgeId in allEdges) {
           var edge = allEdges[edgeId];
           if (connectedNodes.includes(edge.fromId) || connectedNodes.includes(edge.toId)) {
             edge.setOptions({color:{opacity:1}});
           } else {
-            edge.setOptions({color:{opacity:0.1}});
+            edge.setOptions({color:{opacity:0.05}});
           }
         }
       });
+
+      // Restaurar foco
       network.on("deselectNode", function(params) {
         var allNodes = network.body.nodes;
         var allEdges = network.body.edges;
         for (var nodeId in allNodes) {
-          allNodes[nodeId].setOptions({color:{opacity:1}, font:{color:'black'}});
+          allNodes[nodeId].setOptions({opacity:1, font:{color:'black'}});
         }
         for (var edgeId in allEdges) {
           allEdges[edgeId].setOptions({color:{opacity:1}});
+        }
+      });
+
+      // Mantém fonte legível mesmo com zoom
+      network.on("zoom", function(params) {
+        var scale = params.scale;
+        var allNodes = network.body.nodes;
+        for (var nodeId in allNodes) {
+          allNodes[nodeId].setOptions({font:{size: Math.max(18, 24/scale)}});
         }
       });
     </script>
@@ -247,6 +273,9 @@ def render_pyvis(G, view="A", partition=None, height="740px"):
     html = html.replace("</body>", custom_js + "\n</body>")
     return html
 
+# -----------------------------------------------------------
+# DOWNLOAD HTML
+# -----------------------------------------------------------
 def download_html_button(html: str, filename="rede_lutas.html"):
     b64 = base64.b64encode(html.encode()).decode()
     href = f'<a href="data:text/html;base64,{b64}" download="{filename}">💾 Baixar Rede (HTML)</a>'
@@ -355,7 +384,7 @@ def pagina_visualizacao():
         part = community_louvain.best_partition(G) if G.number_of_edges() > 0 else {n: 0 for n in G.nodes()}
         html = render_pyvis(G, view="B", partition=part)
 
-    st.components.v1.html(html, height=740, scrolling=True)
+    st.components.v1.html(html, height=760, scrolling=True)
     download_html_button(html, filename="rede_lutas.html")
 
 # -----------------------------------------------------------
