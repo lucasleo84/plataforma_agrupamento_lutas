@@ -144,8 +144,23 @@ def render_pyvis(G, view="A", partition=None, height="740px"):
     net = Network(height=height, width="100%", notebook=False, directed=False, bgcolor="#ffffff")
     net.set_options('''
     {
-      "nodes": { "shape": "dot", "scaling": { "min": 10, "max": 55 }, "font": { "size": 18 } },
-      "edges": { "smooth": false },
+      "nodes": {
+        "shape": "dot",
+        "scaling": { "min": 10, "max": 55 },
+        "font": { "size": 18 }
+      },
+      "edges": {
+        "smooth": false,
+        "color": { "inherit": "from" },
+        "width": 1.5
+      },
+      "interaction": {
+        "hover": true,
+        "zoomView": true,
+        "dragNodes": true,
+        "selectConnectedEdges": true,
+        "hoverConnectedEdges": true
+      },
       "physics": {
         "enabled": true,
         "solver": "repulsion",
@@ -157,31 +172,80 @@ def render_pyvis(G, view="A", partition=None, height="740px"):
           "damping": 0.09
         }
       },
-      "interaction": { "hover": true, "zoomView": true, "dragNodes": true }
+      "manipulation": { "enabled": false },
+      "interaction": {
+        "multiselect": false,
+        "navigationButtons": true
+      },
+      "configure": { "enabled": false },
+      "groups": {}
     }
     ''')
 
     if view == "A":
         for n in G.nodes():
             sty = color_and_size_for_node(G, n)
-            net.add_node(str(n), label=str(G.nodes[n].get("label", n)),
-                         color=sty["color"], size=sty["size"], title=sty["title"])
+            net.add_node(str(n),
+                         label=str(G.nodes[n].get("label", n)),
+                         color=sty["color"], size=sty["size"],
+                         title=sty["title"])
         for u, v, attrs in G.edges(data=True):
             net.add_edge(str(u), str(v))
     else:
         part = partition or {n: 0 for n in G.nodes()}
-        palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b",
-                   "#e377c2","#7f7f7f","#bcbd22","#17becf"]
+        palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
+                   "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
         for n in G.nodes():
             t = G.nodes[n].get("tipo")
             deg = G.degree(n)
             size = max(14, 10 + 6 * deg) if t == "habilidade" else (25 if t=="luta" else 20)
             color = palette[part.get(n, 0) % len(palette)]
-            net.add_node(str(n), label=str(G.nodes[n].get("label", n)),
-                         color=color, size=size, title=f"grau: {deg}")
+            net.add_node(str(n),
+                         label=str(G.nodes[n].get("label", n)),
+                         color=color, size=size,
+                         title=f"grau: {deg}")
         for u, v, attrs in G.edges(data=True):
             net.add_edge(str(u), str(v))
-    return net.generate_html(notebook=False)
+
+    # --- JS personalizado para destacar conexões ---
+    custom_js = """
+    <script type="text/javascript">
+      network.on("selectNode", function(params) {
+        var selectedNode = params.nodes[0];
+        var connectedNodes = network.getConnectedNodes(selectedNode);
+        var allNodes = network.body.nodes;
+        var allEdges = network.body.edges;
+        for (var nodeId in allNodes) {
+          if (nodeId == selectedNode || connectedNodes.includes(nodeId)) {
+            allNodes[nodeId].setOptions({color:{opacity:1}, font:{color:'black'}});
+          } else {
+            allNodes[nodeId].setOptions({color:{opacity:0.2}, font:{color:'#cccccc'}});
+          }
+        }
+        for (var edgeId in allEdges) {
+          var edge = allEdges[edgeId];
+          if (connectedNodes.includes(edge.fromId) || connectedNodes.includes(edge.toId)) {
+            edge.setOptions({color:{opacity:1}});
+          } else {
+            edge.setOptions({color:{opacity:0.1}});
+          }
+        }
+      });
+      network.on("deselectNode", function(params) {
+        var allNodes = network.body.nodes;
+        var allEdges = network.body.edges;
+        for (var nodeId in allNodes) {
+          allNodes[nodeId].setOptions({color:{opacity:1}, font:{color:'black'}});
+        }
+        for (var edgeId in allEdges) {
+          allEdges[edgeId].setOptions({color:{opacity:1}});
+        }
+      });
+    </script>
+    """
+    html = net.generate_html(notebook=False)
+    html = html.replace("</body>", custom_js + "\n</body>")
+    return html
 
 def download_html_button(html: str, filename="rede_lutas.html"):
     b64 = base64.b64encode(html.encode()).decode()
@@ -197,12 +261,10 @@ def pagina_insercao():
     cat = carregar_habilidades_catalogo()
     registros = carregar_dados()
 
-    # Recarregamento
     if "recarregar" in st.session_state and st.session_state.recarregar:
         st.session_state.recarregar = False
         st.rerun()
 
-    # Mensagem após reload
     if "mensagem_sucesso" in st.session_state:
         st.success(st.session_state["mensagem_sucesso"])
         if st.session_state.get("mostrar_baloes"):
