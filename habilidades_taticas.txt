@@ -1,4 +1,5 @@
-golpear e contra-golpear
-assumir/ajustar base
+contra-golpear
 ajustar distância
-enganar/fintar
+fintar
+esgrimar
+encontrar brechas
