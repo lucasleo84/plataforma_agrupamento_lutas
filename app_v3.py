@@ -38,11 +38,11 @@ ARQ_TEC_OF  = BASE_DIR / "habilidades_tecnicas_ofensivas.txt"
 ARQ_TEC_DEF = BASE_DIR / "habilidades_tecnicas_defensivas.txt"
 ARQ_TAC     = BASE_DIR / "habilidades_taticas.txt"
 
-# Cores fixas
-COR_LUTA         = "#1f77b4"   # azul
-COR_BRINCADEIRA  = "#2ca02c"   # verde
-COR_TECNICA      = "#ff7f0e"   # laranja
-COR_TATICA       = "#9467bd"   # roxo
+# Cores
+COR_LUTA         = "#1f77b4"
+COR_BRINCADEIRA  = "#2ca02c"
+COR_TECNICA      = "#ff7f0e"
+COR_TATICA       = "#9467bd"
 
 # -----------------------------------------------------------
 # FUNÇÕES DE SUPORTE
@@ -85,6 +85,8 @@ def build_graph_full(registros):
     for r in registros:
         luta = r["luta"].strip()
         brinc = r["brincadeira"].strip()
+        if not luta or not brinc:
+            continue
 
         G.add_node(luta, tipo="luta", label=luta)
         G.add_node(brinc, tipo="brincadeira", label=brinc)
@@ -98,11 +100,10 @@ def build_graph_full(registros):
         for sub_tipo, lista in grupos:
             for h in lista:
                 nome = h.strip()
-                if not nome:
-                    continue
-                G.add_node(nome, tipo="habilidade", sub_tipo=sub_tipo, label=nome)
-                G.add_edge(brinc, nome, rel="BH")
-                G.add_edge(luta, nome, rel="LH")
+                if nome:
+                    G.add_node(nome, tipo="habilidade", sub_tipo=sub_tipo, label=nome)
+                    G.add_edge(brinc, nome, rel="BH")
+                    G.add_edge(luta, nome, rel="LH")
     return G
 
 def subgraph_for_relation(G_full, show_LB, show_BH, show_LH):
@@ -123,49 +124,44 @@ def color_and_size_for_node(G, n):
     attrs = G.nodes[n]
     t = attrs.get("tipo", "")
     sub = attrs.get("sub_tipo", "")
-    deg = G.degree(n)
 
+    # Tamanho fixo por tipo
     if t == "luta":
-        size = 25
-        color = COR_LUTA
+        size, color = 25, COR_LUTA
     elif t == "brincadeira":
-        size = 20
-        color = COR_BRINCADEIRA
+        size, color = 22, COR_BRINCADEIRA
     elif t == "habilidade":
-        size = max(14, 10 + 6 * deg)
+        size = 20
         color = COR_TECNICA if sub == "tecnica" else COR_TATICA
     else:
-        size = 15
-        color = "#aaaaaa"
+        size, color = 15, "#aaaaaa"
 
-    return {"color": color, "size": size, "title": f"{t} • conexões: {deg}"}
+    return {"color": color, "size": size, "title": t}
 
-# -----------------------------------------------------------
-# VISUALIZAÇÃO PYVIS
-# -----------------------------------------------------------
 def render_pyvis(G, view="A", partition=None, height="740px"):
     net = Network(height=height, width="100%", notebook=False, directed=False, bgcolor="#ffffff")
-
-    # Parâmetros visuais otimizados
     net.set_options('''
     {
       "nodes": {
         "shape": "dot",
-        "opacity": 1.0,
-        "borderWidth": 1,
-        "scaling": { "min": 5, "max": 5 },
-        "font": {
-          "size": 5,
-          "face": "Arial",
-          "background": "rgba(255,255,255,0.8)",
-          "strokeWidth": 0,
-          "vadjust": 0
-        }
+        "opacity": 0.85,
+        "font": {"size": 18}
       },
       "edges": {
         "smooth": false,
-        "color": { "inherit": "from" },
-        "width": 1.5
+        "color": {"inherit": "from"},
+        "width": 1.8
+      },
+      "physics": {
+        "enabled": true,
+        "solver": "barnesHut",
+        "barnesHut": {
+          "gravitationalConstant": -2800,
+          "centralGravity": 0.1,
+          "springLength": 240,
+          "springConstant": 0.03,
+          "avoidOverlap": 1.0
+        }
       },
       "interaction": {
         "hover": true,
@@ -173,98 +169,54 @@ def render_pyvis(G, view="A", partition=None, height="740px"):
         "dragNodes": true,
         "selectConnectedEdges": true,
         "hoverConnectedEdges": true
-      },
-      "physics": {
-        "enabled": true,
-        "solver": "repulsion",
-        "repulsion": {
-          "centralGravity": 0.08,
-          "springLength": 260,
-          "springConstant": 0.03,
-          "nodeDistance": 380,
-          "damping": 0.1
-        },
-        "minVelocity": 0.75
-      },
-      "layout": {
-        "improvedLayout": true,
-        "hierarchical": false
       }
     }
     ''')
 
-    # Nós e arestas
-    if view == "A":
-        for n in G.nodes():
-            sty = color_and_size_for_node(G, n)
-            net.add_node(str(n),
-                         label=str(G.nodes[n].get("label", n)),
-                         color={"background": sty["color"], "border": "#333333"},
-                         size=sty["size"], title=sty["title"])
-        for u, v, attrs in G.edges(data=True):
-            net.add_edge(str(u), str(v))
-    else:
-        part = partition or {n: 0 for n in G.nodes()}
-        palette = ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd",
-                   "#8c564b","#e377c2","#7f7f7f","#bcbd22","#17becf"]
-        for n in G.nodes():
-            t = G.nodes[n].get("tipo")
-            deg = G.degree(n)
-            size = max(14, 10 + 6 * deg) if t == "habilidade" else (25 if t=="luta" else 20)
-            color = palette[part.get(n, 0) % len(palette)]
-            net.add_node(str(n),
-                         label=str(G.nodes[n].get("label", n)),
-                         color={"background": color, "border": "#333333"},
-                         size=size, title=f"grau: {deg}")
-        for u, v, attrs in G.edges(data=True):
-            net.add_edge(str(u), str(v))
+    for n in G.nodes():
+        sty = color_and_size_for_node(G, n)
+        net.add_node(str(n),
+                     label=str(G.nodes[n].get("label", n)),
+                     color=sty["color"], size=sty["size"],
+                     title=sty["title"])
+    for u, v, attrs in G.edges(data=True):
+        net.add_edge(str(u), str(v))
 
-    # JavaScript customizado
+    # JS: foco com brilho e opacidade
     custom_js = """
     <script type="text/javascript">
-      // Foco seletivo
       network.on("selectNode", function(params) {
-        var selectedNode = params.nodes[0];
-        var connectedNodes = network.getConnectedNodes(selectedNode);
+        var selected = params.nodes[0];
+        var connected = network.getConnectedNodes(selected);
         var allNodes = network.body.nodes;
         var allEdges = network.body.edges;
 
         for (var nodeId in allNodes) {
-          if (nodeId == selectedNode || connectedNodes.includes(nodeId)) {
-            allNodes[nodeId].setOptions({opacity:1, font:{color:'black'}});
+          if (nodeId == selected || connected.includes(nodeId)) {
+            allNodes[nodeId].setOptions({color:{opacity:1}, font:{color:'black'}});
           } else {
-            allNodes[nodeId].setOptions({opacity:0.15, font:{color:'#bbbbbb'}});
+            allNodes[nodeId].setOptions({color:{opacity:0.2}, font:{color:'#cccccc'}});
           }
         }
 
         for (var edgeId in allEdges) {
-          var edge = allEdges[edgeId];
-          if (connectedNodes.includes(edge.fromId) || connectedNodes.includes(edge.toId)) {
-            edge.setOptions({color:{opacity:1}});
+          var e = allEdges[edgeId];
+          if (e.fromId == selected || e.toId == selected) {
+            e.setOptions({color:{color:'#ffffff'}, width:3});
           } else {
-            edge.setOptions({color:{opacity:0.05}});
+            e.setOptions({color:{opacity:0.1}, width:1});
           }
         }
       });
 
-      // Restaurar foco
       network.on("deselectNode", function(params) {
         var allNodes = network.body.nodes;
         var allEdges = network.body.edges;
         for (var nodeId in allNodes) {
-          allNodes[nodeId].setOptions({opacity:1, font:{color:'black'}});
+          allNodes[nodeId].setOptions({color:{opacity:0.85}, font:{color:'black'}});
         }
         for (var edgeId in allEdges) {
-          allEdges[edgeId].setOptions({color:{opacity:1}});
-        }
-      });
-
-      // Mantém fonte legível mesmo com zoom
-      network.on("zoom", function(params) {
-        var scale = params.scale;
-        var allNodes = network.body.nodes;
-        for (var nodeId in allNodes) {
-          allNodes[nodeId].setOptions({font:{size: Math.max(18, 24/scale)}});
+          allEdges[edgeId].setOptions({color:{opacity:1}, width:1.8});
         }
       });
     </script>
@@ -273,9 +225,6 @@ def render_pyvis(G, view="A", partition=None, height="740px"):
     html = html.replace("</body>", custom_js + "\n</body>")
     return html
 
-# -----------------------------------------------------------
-# DOWNLOAD HTML
-# -----------------------------------------------------------
 def download_html_button(html: str, filename="rede_lutas.html"):
     b64 = base64.b64encode(html.encode()).decode()
     href = f'<a href="data:text/html;base64,{b64}" download="{filename}">💾 Baixar Rede (HTML)</a>'
@@ -286,7 +235,6 @@ def download_html_button(html: str, filename="rede_lutas.html"):
 # -----------------------------------------------------------
 def pagina_insercao():
     st.header("Área dos Alunos – Inserção")
-    st.caption("Preencha os campos e adicione o jogo com suas habilidades.")
     cat = carregar_habilidades_catalogo()
     registros = carregar_dados()
 
@@ -303,15 +251,13 @@ def pagina_insercao():
 
     luta = st.text_input("Nome da Luta")
     brinc = st.text_input("Nome do Jogo / Brincadeira")
-    tec_of  = st.multiselect("Técnicas Ofensivas",  options=cat["tecnicas_of"])
-    tec_def = st.multiselect("Técnicas Defensivas", options=cat["tecnicas_def"])
-    taticas = st.multiselect("Habilidades Táticas", options=cat["taticas"])
+    tec_of  = st.multiselect("Técnicas Ofensivas (opcional)",  options=cat["tecnicas_of"])
+    tec_def = st.multiselect("Técnicas Defensivas (opcional)", options=cat["tecnicas_def"])
+    taticas = st.multiselect("Habilidades Táticas (opcional)", options=cat["taticas"])
 
     if st.button("➕ Adicionar Jogo", type="primary"):
         if not luta.strip() or not brinc.strip():
             st.error("Informe Luta e Jogo.")
-        elif len(tec_of + tec_def + taticas) == 0:
-            st.error("Selecione pelo menos uma habilidade.")
         else:
             novo = {
                 "luta": luta.strip(),
@@ -353,8 +299,8 @@ def pagina_visualizacao():
         f["BH"] = st.checkbox("Jogo → Habilidade", value=f["BH"])
         f["LH"] = st.checkbox("Luta → Habilidade", value=f["LH"])
         st.divider()
-        st.subheader("Legenda (Visual A)")
-        st.markdown("- 🔵 **Lutas**\n- 🟢 **Jogos**\n- 🟠 **Técnicas (Of/Def)**\n- 🟣 **Táticas**")
+        st.subheader("Legenda")
+        st.markdown("- 🔵 **Lutas**\n- 🟢 **Jogos**\n- 🟠 **Técnicas**\n- 🟣 **Táticas**")
         st.divider()
         if st.button("♻️ Limpar Rede", type="secondary"):
             salvar_dados([]); st.toast("Rede limpa.", icon="✅")
@@ -384,7 +330,7 @@ def pagina_visualizacao():
         part = community_louvain.best_partition(G) if G.number_of_edges() > 0 else {n: 0 for n in G.nodes()}
         html = render_pyvis(G, view="B", partition=part)
 
-    st.components.v1.html(html, height=760, scrolling=True)
+    st.components.v1.html(html, height=740, scrolling=True)
     download_html_button(html, filename="rede_lutas.html")
 
 # -----------------------------------------------------------
